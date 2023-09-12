@@ -1,6 +1,6 @@
 mod tokenize;
 mod parser;
-use std::fs::File;
+use std::{fs::File, io::Read};
 use std::io::Write;
 
 use tokenize::{Token, Tokenizer};
@@ -36,8 +36,11 @@ fn generate_asm_win(tokens: &[Token]) -> String {
 }
 
 fn main() {
-    let input = "let x = 5 \nexit() let a7a = x let aa = \"'a7a{}'\" \n let y = exit (2) exit 20";
-    let tokenizer = Tokenizer::new(input);
+    let mut input = String::new();
+    let mut file = File::open("main.kr").expect("Can't open file");
+    file.read_to_string(&mut input).expect("can't read file");
+    
+    let tokenizer = Tokenizer::new(&input);
     let tokens = tokenizer.tokenize();
 
     println!("{}", input);

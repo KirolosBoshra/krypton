@@ -1,0 +1,3 @@
+let x = "Value"
+let y = 65
+exit(y + 5)

@@ -1,4 +1,6 @@
 /target
 /.vscode
+*.exe
 build.bat
 cargo.lock
+main.asm
