@@ -1,7 +1,6 @@
 mod generator;
 mod parser;
 mod tokenize;
-// use std::io::Write;
 use std::{fs::File, io::Read, io::Write};
 
 use generator::Generator;
