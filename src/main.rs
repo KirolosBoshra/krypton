@@ -21,8 +21,8 @@ fn main() {
     let mut ast = Parser::new(&tokens);
     println!("Parse Trees: {:?}", ast.parse_tokens());
 
-    let generator = Generator::new(ast.parse_tokens());
-    let file_name = "main.asm";
+    let mut generator = Generator::new(&ast.parse_tokens());
+    let file_name = "out.asm";
     let asm_cont = generator.generate_linux_64();
 
     let mut file = File::create(file_name).expect("Failed to create file");

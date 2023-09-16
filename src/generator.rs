@@ -1,24 +1,49 @@
 use crate::{parser::Tree, tokenize::Token};
 
+#[derive(Debug)]
+struct Var {
+    name: String,
+    stack_loc: i32,
+}
+impl Var {
+    pub fn new(name: String, stack_loc: i32) -> Self {
+        Self { name, stack_loc }
+    }
+}
+
 pub struct Generator {
     tree: Vec<Tree>,
+    vars: Vec<Var>,
+    stack: i32,
 }
 
 impl Generator {
-    pub fn new(tree: Vec<Tree>) -> Self {
-        Self { tree }
+    pub fn new(tree: &Vec<Tree>) -> Self {
+        let vars = vec![];
+        let stack = 0;
+        Self {
+            tree: tree.to_vec(),
+            vars,
+            stack,
+        }
     }
-    pub fn generate_linux_64(&self) -> String {
-        let mut iter = self.tree.iter().peekable();
+    pub fn generate_linux_64(&mut self) -> String {
+        let tree_clone = self.tree.clone();
+        let mut iter = tree_clone.iter().peekable();
         let mut asm = String::new();
         let mut section_text = String::new();
         let mut start = String::new();
-
         section_text += "section .text\n\tglobal _start\n";
         start += "_start:\n";
 
         while let Some(op) = iter.next() {
             match op {
+                Tree::Let(ident, expr) => {
+                    let var = Var::new(ident.to_string(), self.stack);
+                    self.vars.push(var);
+                    start += self.gen_expr(expr).as_str();
+                    println!("{:?}", self.vars);
+                }
                 Tree::Exit(expr) => {
                     start += self.gen_expr(expr).as_str();
                     start += "\tmov rax, 60\n";
@@ -29,11 +54,11 @@ impl Generator {
             }
         }
         asm += &section_text;
-        asm += &start;
+        asm += &start.as_str();
         asm
     }
-    fn gen_expr(&self, tree: &Box<Tree>) -> String {
-        match **tree {
+    fn gen_expr(&mut self, tree: &Tree) -> String {
+        match tree {
             Tree::Number(num) => {
                 let mut buffer = String::new();
                 buffer += "\tmov rax, ";
@@ -42,11 +67,30 @@ impl Generator {
                 buffer += self.push("rax").as_str();
                 buffer
             }
+            Tree::Ident(var) => {
+                let mut var_loc = String::new();
+                let mut buffer = String::new();
+                let stack_loc;
+                let vars = self.vars.iter().find(|vars| vars.name == var.to_string());
+                match vars {
+                    Some(vars) => {
+                        stack_loc = vars.stack_loc;
+                    }
+                    _ => {
+                        panic!("Var not declared");
+                    }
+                }
+                var_loc += "QWORD [rsp + ";
+                var_loc += ((self.stack - stack_loc - 1) * 8).to_string().as_str();
+                var_loc += "]";
+                buffer += self.push(&var_loc).as_str();
+                buffer
+            }
             Tree::BinOp(..) => self.gen_bin_exp(tree),
             _ => panic!("WTF"),
         }
     }
-    fn gen_bin_exp(&self, tree: &Tree) -> String {
+    fn gen_bin_exp(&mut self, tree: &Tree) -> String {
         match tree {
             Tree::BinOp(left, op, right) => match op {
                 Token::Plus => {
@@ -97,13 +141,15 @@ impl Generator {
             _ => panic!("invalid"),
         }
     }
-    fn push(&self, buf: &str) -> String {
+    fn push(&mut self, buf: &str) -> String {
+        self.stack += 1;
         let mut buffer = String::from("\tpush ");
         buffer += buf;
         buffer += "\n";
         buffer
     }
-    fn pop(&self, buf: &str) -> String {
+    fn pop(&mut self, buf: &str) -> String {
+        self.stack -= 1;
         let mut buffer = String::from("\tpop ");
         buffer += buf;
         buffer += "\n";
