@@ -9,6 +9,7 @@ pub enum Tree {
     BinOp(Box<Tree>, Token, Box<Tree>),
     Exit(Box<Tree>),
     Let(String, Box<Tree>),
+    Assign(String, Box<Tree>),
 }
 
 pub struct Parser<'a> {
@@ -69,7 +70,19 @@ impl Parser<'_> {
     fn parse_factor(&mut self, iter: &mut std::iter::Peekable<std::slice::Iter<Token>>) -> Tree {
         match iter.next().unwrap() {
             Token::Number(num) => Tree::Number(*num),
-            Token::Ident(string) => Tree::Ident(string.to_string()),
+            Token::Ident(string) => match iter.peek().unwrap() {
+                Token::Equal => {
+                    iter.next();
+                    match iter.peek().unwrap() {
+                        Token::OpenParen => {
+                            let expr = self.parse_factor(iter);
+                            Tree::Assign(string.to_string(), Box::new(expr))
+                        }
+                        _ => panic!("Use (Expr) to ReAssign var"),
+                    }
+                }
+                _ => Tree::Ident(string.to_string()),
+            },
             Token::Str(string) => Tree::Str(string.to_string()),
             Token::Plus => self.parse_factor(iter),
             Token::Minus => {
@@ -104,7 +117,10 @@ impl Parser<'_> {
                 let expr = self.parse_factor(iter);
                 Tree::Exit(Box::new(expr))
             }
-            _ => panic!("Invalid factor"),
+            _ => {
+                println!("{:?}", iter);
+                panic!("Invalid factor")
+            }
         }
     }
 }

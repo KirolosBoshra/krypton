@@ -1,3 +1,4 @@
 let y = 5
-let x = 2 + y
+let x = y + 5
+y = (2 + 3 + y + x)
 exit(x + y)

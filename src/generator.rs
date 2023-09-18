@@ -1,6 +1,6 @@
 use crate::{parser::Tree, tokenize::Token};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Var {
     name: String,
     stack_loc: i32,
@@ -39,9 +39,51 @@ impl Generator {
         while let Some(op) = iter.next() {
             match op {
                 Tree::Let(ident, expr) => {
-                    let var = Var::new(ident.to_string(), self.stack);
-                    self.vars.push(var);
-                    start += self.gen_expr(expr).as_str();
+                    let vars_clone = self.vars.clone();
+                    let iter = vars_clone.iter().find(|var| var.name == ident.to_string());
+                    match iter {
+                        Some(var) => {
+                            let mut expr_loc = String::new();
+                            start += self.gen_expr(expr).as_str();
+                            expr_loc += "QWORD [rsp + ";
+                            expr_loc += ((self.stack - self.stack - 1) * 8)
+                                .abs()
+                                .to_string()
+                                .as_str();
+                            expr_loc += "]";
+                            start += self.push(expr_loc.as_str()).as_str();
+                            start += "\tmov QWORD [rsp + ";
+                            start += ((self.stack - var.stack_loc - 1) * 8).to_string().as_str();
+                            start += "], rax\n";
+                            start += self.pop("rax").as_str();
+                        }
+                        _ => {
+                            let var = Var::new(ident.to_string(), self.stack);
+                            self.vars.push(var);
+                            start += self.gen_expr(expr).as_str();
+                        }
+                    }
+                    println!("{:?}", self.vars);
+                }
+
+                Tree::Assign(ident, expr) => {
+                    let vars_clone = self.vars.clone();
+                    let iter = vars_clone.iter().find(|var| var.name == ident.to_string());
+                    match iter {
+                        Some(var) => {
+                            let mut expr_loc = String::new();
+                            start += self.gen_expr(expr).as_str();
+                            expr_loc += "QWORD [rsp + ";
+                            expr_loc += ((self.stack - self.stack - 1) * 8).to_string().as_str();
+                            expr_loc += "]";
+                            start += self.push(expr_loc.as_str()).as_str();
+                            start += "\tmov QWORD [rsp + ";
+                            start += ((self.stack - var.stack_loc - 1) * 8).to_string().as_str();
+                            start += "], rax\n";
+                            start += self.pop("rax").as_str();
+                        }
+                        _ => panic!("Var not declared"),
+                    }
                     println!("{:?}", self.vars);
                 }
                 Tree::Exit(expr) => {

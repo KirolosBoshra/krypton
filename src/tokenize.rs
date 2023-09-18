@@ -1,4 +1,3 @@
-
 #[derive(Debug, Clone)]
 pub enum Token {
     Number(i32),
@@ -14,28 +13,26 @@ pub enum Token {
     Let,
     Exit,
     Ident(String),
-
 }
+
+// [TODO] Adding comments
 
 #[derive(Debug, Clone)]
 pub struct Tokenizer<'a> {
-    input: &'a str
+    input: &'a str,
 }
 impl Tokenizer<'_> {
-
     pub fn new(input: &str) -> Tokenizer {
-        Tokenizer { 
-            input
-        }
+        Tokenizer { input }
     }
 
     pub fn tokenize(self) -> Vec<Token> {
         let mut tokens = Vec::new();
         let mut iter = self.input.chars().peekable();
-    
+
         while let Some(&c) = iter.peek() {
             match c {
-                'a'..='z' | '_'  => {
+                'a'..='z' | '_' => {
                     let mut buf = String::new();
                     while let Some(&c) = iter.peek() {
                         if c.is_alphanumeric() || c == '_' {
@@ -48,7 +45,7 @@ impl Tokenizer<'_> {
                     match buf.as_str() {
                         "exit" => tokens.push(Token::Exit),
                         "let" => tokens.push(Token::Let),
-                        _ => tokens.push(Token::Ident(buf))
+                        _ => tokens.push(Token::Ident(buf)),
                     }
                 }
                 '0'..='9' => {
@@ -72,7 +69,7 @@ impl Tokenizer<'_> {
                             '\"' => {
                                 iter.next();
                                 break;
-                            },
+                            }
                             _ => {
                                 string.push(c);
                                 iter.next();
@@ -118,7 +115,7 @@ impl Tokenizer<'_> {
                 }
             }
         }
-    
+
         tokens
     }
 }
