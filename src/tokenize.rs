@@ -15,8 +15,6 @@ pub enum Token {
     Ident(String),
 }
 
-// [TODO] Adding comments
-
 #[derive(Debug, Clone)]
 pub struct Tokenizer<'a> {
     input: &'a str,
@@ -99,8 +97,23 @@ impl Tokenizer<'_> {
                     iter.next();
                 }
                 '/' => {
-                    tokens.push(Token::Divide);
                     iter.next();
+                    if *iter.peek().unwrap() == '/' {
+                        while let Some(&c) = iter.peek() {
+                            match c {
+                                '\n' => {
+                                    iter.next();
+                                    break;
+                                }
+                                _ => {
+                                    iter.next();
+                                }
+                            }
+                        }
+                    } else {
+                        tokens.push(Token::Divide);
+                        iter.next();
+                    }
                 }
                 '=' => {
                     tokens.push(Token::Equal);

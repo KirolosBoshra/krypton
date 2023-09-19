@@ -1,4 +1,5 @@
+// this a comment
 let y = 5
 let x = y + 5
-y = (2 + 3 + y + x)
+//y = (2 + 3 + y + x) this also a comment
 exit(x + y)
