@@ -1,6 +1,6 @@
 // this a comment
 let x = 5
-x = (4)
+x = (4 + 4)
 let y = 4 + x / 2
 let k = y + 4 / 2
-exit(k)
+exit(x)

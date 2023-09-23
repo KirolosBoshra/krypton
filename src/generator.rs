@@ -75,7 +75,7 @@ impl Generator {
                 buffer
             },
             Tree::Ident(var) => {
-                let var_loc = format!("QWORD [rsp + {}]", (self.stack - self.find_var(var).stack_loc - 1) * 8);
+                let var_loc = format!("QWORD [rsp + {}]", (self.find_var(var).stack_loc) * 8);
                 let buffer = self.push(&var_loc);
                 buffer
             },
@@ -91,7 +91,7 @@ impl Generator {
         buffer += self.pop("rax").as_str();
         buffer += self.pop("rbx").as_str();
         match op {
-            "div" => buffer += &format!("\t{} rax\n", op),
+            "div" => buffer += &format!("\t{} rbx\n", op),
             _ => buffer += &format!("\t{} rax, rbx\n", op)
         }
         buffer += self.push("rax").as_str();
@@ -115,11 +115,11 @@ impl Generator {
         match *expr {
             Tree::Number(num) => {
                 self.stack += 1;
-                let stack_loc = ((self.find_var(ident).stack_loc) * 8).to_string();
+                let stack_loc = (self.find_var(ident).stack_loc * 8).to_string();
                 start.push_str(&format!("\tmov QWORD [rsp + {}], {}\n", stack_loc, num));
             }
             _ => {
-                let stack_loc = ((self.stack - (self.find_var(ident).stack_loc - 1)) * 8).to_string();
+                let stack_loc = (self.find_var(ident).stack_loc * 8).to_string();
                 start.push_str(&format!("{} \tmov QWORD [rsp + {}], rax\n", self.gen_expr(expr), stack_loc));
             }
         }
