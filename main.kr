@@ -1,5 +1,6 @@
 // this a comment
-let y = 5
-let x = y + 5
-//y = (2 + 3 + y + x) this also a comment
-exit(x + y)
+let x = 5
+x = (4)
+let y = 4 + x / 2
+let k = y + 4 / 2
+exit(k)

@@ -30,7 +30,7 @@ impl Tokenizer<'_> {
 
         while let Some(&c) = iter.peek() {
             match c {
-                'a'..='z' | '_' => {
+                'a'..='z' | '_' | 'A'..='Z' => {
                     let mut buf = String::new();
                     while let Some(&c) = iter.peek() {
                         if c.is_alphanumeric() || c == '_' {

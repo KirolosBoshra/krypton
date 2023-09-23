@@ -18,6 +18,7 @@ pub struct Generator {
 }
 
 impl Generator {
+    
     pub fn new(tree: &Vec<Tree>) -> Self {
         let vars = vec![];
         let stack = 0;
@@ -27,6 +28,7 @@ impl Generator {
             stack,
         }
     }
+
     pub fn generate_linux_64(&mut self) -> String {
         let tree_clone = self.tree.clone();
         let mut iter = tree_clone.iter().peekable();
@@ -39,53 +41,17 @@ impl Generator {
         while let Some(op) = iter.next() {
             match op {
                 Tree::Let(ident, expr) => {
-                    let vars_clone = self.vars.clone();
-                    let iter = vars_clone.iter().find(|var| var.name == ident.to_string());
-                    match iter {
-                        Some(var) => {
-                            let mut expr_loc = String::new();
-                            start += self.gen_expr(expr).as_str();
-                            expr_loc += "QWORD [rsp + ";
-                            expr_loc += ((self.stack - self.stack - 1) * 8)
-                                .abs()
-                                .to_string()
-                                .as_str();
-                            expr_loc += "]";
-                            start += self.push(expr_loc.as_str()).as_str();
-                            start += "\tmov QWORD [rsp + ";
-                            start += ((self.stack - var.stack_loc - 1) * 8).to_string().as_str();
-                            start += "], rax\n";
-                            start += self.pop("rax").as_str();
-                        }
-                        _ => {
-                            let var = Var::new(ident.to_string(), self.stack);
-                            self.vars.push(var);
-                            start += self.gen_expr(expr).as_str();
-                        }
+                    if self.vars.iter().any(|var| var.name == ident.to_string()) {
+                        panic!("{} is already declared use {} = (expr) instead", ident, ident);
                     }
-                    println!("{:?}", self.vars);
+                    self.vars.push(Var::new(ident.to_string(), self.stack));
+                    self.handle_vars(ident, expr, &mut start);
                 }
 
                 Tree::Assign(ident, expr) => {
-                    let vars_clone = self.vars.clone();
-                    let iter = vars_clone.iter().find(|var| var.name == ident.to_string());
-                    match iter {
-                        Some(var) => {
-                            let mut expr_loc = String::new();
-                            start += self.gen_expr(expr).as_str();
-                            expr_loc += "QWORD [rsp + ";
-                            expr_loc += ((self.stack - self.stack - 1) * 8).to_string().as_str();
-                            expr_loc += "]";
-                            start += self.push(expr_loc.as_str()).as_str();
-                            start += "\tmov QWORD [rsp + ";
-                            start += ((self.stack - var.stack_loc - 1) * 8).to_string().as_str();
-                            start += "], rax\n";
-                            start += self.pop("rax").as_str();
-                        }
-                        _ => panic!("Var not declared"),
-                    }
-                    println!("{:?}", self.vars);
+                    self.handle_vars(ident, expr, &mut start);
                 }
+
                 Tree::Exit(expr) => {
                     start += self.gen_expr(expr).as_str();
                     start += "\tmov rax, 60\n";
@@ -95,106 +61,82 @@ impl Generator {
                 _ => (),
             }
         }
+        println!("{:?}", self.vars);
         asm += &section_text;
         asm += &start.as_str();
         asm
     }
+
     fn gen_expr(&mut self, tree: &Tree) -> String {
         match tree {
             Tree::Number(num) => {
-                let mut buffer = String::new();
-                buffer += "\tmov rax, ";
-                buffer += num.to_string().as_str();
-                buffer += "\n";
-                buffer += self.push("rax").as_str();
+                let mut buffer = format!("\tmov rax, {}\n", num);
+                buffer += &self.push("rax");
                 buffer
-            }
+            },
             Tree::Ident(var) => {
-                let mut var_loc = String::new();
-                let mut buffer = String::new();
-                let stack_loc;
-                let vars = self.vars.iter().find(|vars| vars.name == var.to_string());
-                match vars {
-                    Some(vars) => {
-                        stack_loc = vars.stack_loc;
-                    }
-                    _ => {
-                        panic!("Var not declared");
-                    }
-                }
-                var_loc += "QWORD [rsp + ";
-                var_loc += ((self.stack - stack_loc - 1) * 8).to_string().as_str();
-                var_loc += "]";
-                buffer += self.push(&var_loc).as_str();
+                let var_loc = format!("QWORD [rsp + {}]", (self.stack - self.find_var(var).stack_loc - 1) * 8);
+                let buffer = self.push(&var_loc);
                 buffer
-            }
+            },
             Tree::BinOp(..) => self.gen_bin_exp(tree),
-            _ => panic!("WTF"),
+            _ => panic!("Unexpected expr"),
         }
     }
+
+    fn gen_bin_op(&mut self, left: &Tree, right: &Tree, op: &str) -> String {
+        let mut buffer = String::new();
+        buffer += self.gen_expr(right).as_str();
+        buffer += self.gen_expr(left).as_str();
+        buffer += self.pop("rax").as_str();
+        buffer += self.pop("rbx").as_str();
+        match op {
+            "div" => buffer += &format!("\t{} rax\n", op),
+            _ => buffer += &format!("\t{} rax, rbx\n", op)
+        }
+        buffer += self.push("rax").as_str();
+        buffer
+    }
+
     fn gen_bin_exp(&mut self, tree: &Tree) -> String {
         match tree {
             Tree::BinOp(left, op, right) => match op {
-                Token::Plus => {
-                    let mut buffer = String::new();
-                    buffer += self.gen_expr(right).as_str();
-                    buffer += self.gen_expr(left).as_str();
-                    buffer += self.pop("rax").as_str();
-                    buffer += self.pop("rbx").as_str();
-                    buffer += "\tadd rax, rbx\n";
-                    buffer += self.push("rax").as_str();
-                    buffer
-                }
-
-                Token::Minus => {
-                    let mut buffer = String::new();
-                    buffer += self.gen_expr(right).as_str();
-                    buffer += self.gen_expr(left).as_str();
-                    buffer += self.pop("rax").as_str();
-                    buffer += self.pop("rbx").as_str();
-                    buffer += "\tsub rax, rbx\n";
-                    buffer += self.push("rax").as_str();
-                    buffer
-                }
-
-                Token::Multiply => {
-                    let mut buffer = String::new();
-                    buffer += self.gen_expr(right).as_str();
-                    buffer += self.gen_expr(left).as_str();
-                    buffer += self.pop("rax").as_str();
-                    buffer += self.pop("rbx").as_str();
-                    buffer += "\tmul rbx\n";
-                    buffer += self.push("rax").as_str();
-                    buffer
-                }
-
-                Token::Divide => {
-                    let mut buffer = String::new();
-                    buffer += self.gen_expr(right).as_str();
-                    buffer += self.gen_expr(left).as_str();
-                    buffer += self.pop("rax").as_str();
-                    buffer += self.pop("rbx").as_str();
-                    buffer += "\tdiv rbx\n";
-                    buffer += self.push("rax").as_str();
-                    buffer
-                }
+                Token::Plus => self.gen_bin_op(left, right, "add"),
+                Token::Minus => self.gen_bin_op(left, right, "sub"),
+                Token::Multiply => self.gen_bin_op(left, right, "imul"),
+                Token::Divide => self.gen_bin_op(left, right, "div"),
                 _ => panic!("invalid Token"),
             },
-            _ => panic!("invalid"),
+            _ => panic!("Expected BinOp Tree"),
         }
     }
+
+    fn handle_vars(&mut self, ident: &String, expr: &Tree, start: &mut String) {
+        match *expr {
+            Tree::Number(num) => {
+                self.stack += 1;
+                let stack_loc = ((self.find_var(ident).stack_loc) * 8).to_string();
+                start.push_str(&format!("\tmov QWORD [rsp + {}], {}\n", stack_loc, num));
+            }
+            _ => {
+                let stack_loc = ((self.stack - (self.find_var(ident).stack_loc - 1)) * 8).to_string();
+                start.push_str(&format!("{} \tmov QWORD [rsp + {}], rax\n", self.gen_expr(expr), stack_loc));
+            }
+        }
+        
+    }
+
+    fn find_var(&self, ident: &String) -> &Var {
+        self.vars.iter().find(|vars| vars.name == ident.to_string()).expect(&format!("{} not declared", ident))
+    }
+    
     fn push(&mut self, buf: &str) -> String {
         self.stack += 1;
-        let mut buffer = String::from("\tpush ");
-        buffer += buf;
-        buffer += "\n";
-        buffer
+        format!("\tpush {}\n", buf)
     }
+    
     fn pop(&mut self, buf: &str) -> String {
         self.stack -= 1;
-        let mut buffer = String::from("\tpop ");
-        buffer += buf;
-        buffer += "\n";
-        buffer
+        format!("\tpop {}\n", buf)
     }
 }
