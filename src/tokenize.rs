@@ -7,12 +7,16 @@ pub enum Token {
     Multiply,
     Divide,
     Equal,
+    EquEqu,
     OpenParen,
     CloseParen,
     Semi,
     Let,
     Exit,
     Ident(String),
+    If,
+    OpenCurly,
+    CloseCurly,
 }
 
 #[derive(Debug, Clone)]
@@ -43,6 +47,7 @@ impl Tokenizer<'_> {
                     match buf.as_str() {
                         "exit" => tokens.push(Token::Exit),
                         "let" => tokens.push(Token::Let),
+                        "if" => tokens.push(Token::If),
                         _ => tokens.push(Token::Ident(buf)),
                     }
                 }
@@ -84,6 +89,14 @@ impl Tokenizer<'_> {
                     tokens.push(Token::CloseParen);
                     iter.next();
                 }
+                '{' => {
+                    tokens.push(Token::OpenCurly);
+                    iter.next();
+                }
+                '}' => {
+                    tokens.push(Token::CloseCurly);
+                    iter.next();
+                }
                 '+' => {
                     tokens.push(Token::Plus);
                     iter.next();
@@ -99,25 +112,21 @@ impl Tokenizer<'_> {
                 '/' => {
                     iter.next();
                     if *iter.peek().unwrap() == '/' {
-                        while let Some(&c) = iter.peek() {
-                            match c {
-                                '\n' => {
-                                    iter.next();
-                                    break;
-                                }
-                                _ => {
-                                    iter.next();
-                                }
-                            }
+                        while *iter.peek().unwrap() != '\n' {
+                            iter.next();
                         }
                     } else {
                         tokens.push(Token::Divide);
-                        iter.next();
                     }
                 }
                 '=' => {
-                    tokens.push(Token::Equal);
                     iter.next();
+                    if *iter.peek().unwrap() == '=' {
+                        tokens.push(Token::EquEqu);
+                        iter.next();
+                    } else {
+                        tokens.push(Token::Equal);
+                    }
                 }
                 ';' => {
                     tokens.push(Token::Semi);

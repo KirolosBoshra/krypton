@@ -2,5 +2,8 @@
 let x = 5
 x = (4 + 4)
 let y = 4 + x / 2
-let k = y + 4 / 2
-exit(x+y+k)
+let k = x / y
+if (x == 5) {
+	x = (69)
+}
+exit(y + x)

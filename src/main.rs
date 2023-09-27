@@ -15,8 +15,8 @@ fn main() {
     let tokenizer = Tokenizer::new(&input);
     let tokens = tokenizer.tokenize();
 
-    println!("{}", input);
-    println!("Tokens: {:?}", tokens);
+    // println!("{}", input);
+    // println!("Tokens: {:?}", tokens);
 
     let mut ast = Parser::new(&tokens);
     println!("Parse Trees: {:?}", ast.parse_tokens());
