@@ -1,9 +1,10 @@
 // this a comment
 let x = 5
 x = (4 + 4)
+// let y = 8
 let y = 4 + x / 2
 let k = x / y
-if (x == 5) {
-	x = (69)
+if (x == 1) {
+    x = (5)
 }
-exit(y + x)
+exit(y + x + k)

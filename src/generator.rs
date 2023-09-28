@@ -18,7 +18,7 @@ pub struct Generator {
     text_section: String,
     vars: Vec<Var>,
     lb_count: i32,
-    stack: i32,
+    stack: i32, //[TODO] the whole stack thing needs to be rewriten
 }
 
 impl Generator {
@@ -84,11 +84,11 @@ impl Generator {
                     );
                 }
                 self.vars.push(Var::new(ident.to_string(), self.stack));
-                program += self.handle_vars(&ident, &expr).as_str();
+                program += self.handle_vars(&ident, &expr, true).as_str();
             }
 
             Tree::Assign(ident, expr) => {
-                program += self.handle_vars(&ident, &expr).as_str();
+                program += self.handle_vars(&ident, &expr, false).as_str();
             }
 
             Tree::Exit(expr) => {
@@ -160,7 +160,6 @@ impl Generator {
         buffer += self.pop("rax").as_str();
         buffer += self.pop("rbx").as_str();
         buffer += "\tcmp rax, rbx\n";
-        self.stack -= 1;
         match cmp {
             Token::EquEqu => {
                 buffer += &format!("\tjne .LB{}\n", self.lb_count);
@@ -180,11 +179,13 @@ impl Generator {
         }
     }
 
-    fn handle_vars(&mut self, ident: &String, expr: &Tree) -> String {
+    fn handle_vars(&mut self, ident: &String, expr: &Tree, assign: bool) -> String {
         let mut buffer = String::new();
         match *expr {
             Tree::Number(num) => {
-                self.stack += 1;
+                if assign {
+                    self.stack += 1;
+                }
                 let stack_loc = ((self.stack - self.find_var(ident).stack_loc - 1) * 8).to_string();
                 buffer.push_str(&format!("\tmov QWORD [rsp + {}], {}\n", stack_loc, num));
             }
