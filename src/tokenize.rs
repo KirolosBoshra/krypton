@@ -8,15 +8,18 @@ pub enum Token {
     Divide,
     Equal,
     EquEqu,
+    ExMark,
+    NotEqu,
     OpenParen,
     CloseParen,
+    OpenCurly,
+    CloseCurly,
     Semi,
     Let,
     Exit,
     Ident(String),
     If,
-    OpenCurly,
-    CloseCurly,
+    Else,
 }
 
 #[derive(Debug, Clone)]
@@ -48,6 +51,7 @@ impl Tokenizer<'_> {
                         "exit" => tokens.push(Token::Exit),
                         "let" => tokens.push(Token::Let),
                         "if" => tokens.push(Token::If),
+                        "else" => tokens.push(Token::Else),
                         _ => tokens.push(Token::Ident(buf)),
                     }
                 }
@@ -126,6 +130,15 @@ impl Tokenizer<'_> {
                         iter.next();
                     } else {
                         tokens.push(Token::Equal);
+                    }
+                }
+                '!' => {
+                    iter.next();
+                    if *iter.peek().unwrap() == '=' {
+                        tokens.push(Token::NotEqu);
+                        iter.next();
+                    } else {
+                        tokens.push(Token::ExMark);
                     }
                 }
                 ';' => {

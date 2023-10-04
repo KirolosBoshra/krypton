@@ -1,10 +1,11 @@
 // this a comment
-let x = 5
-x = (4 + 4)
-// let y = 8
-let y = 4 + x / 2
-let k = x / y
-if (x == 1) {
-    x = (5)
+let x = 8
+let y = 5
+let k = 10
+if (x != 8) {
+    exit(x)
+} else {
+	x = (5)
 }
+
 exit(y + x + k)

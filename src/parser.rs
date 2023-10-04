@@ -11,7 +11,7 @@ pub enum Tree {
     Exit(Box<Tree>),
     Let(String, Box<Tree>),
     Assign(String, Box<Tree>),
-    If(Box<Tree>, Vec<Tree>),
+    If(Box<Tree>, Vec<Tree>, Vec<Tree>),
 }
 
 pub struct Parser<'a> {
@@ -30,7 +30,6 @@ impl Parser<'_> {
             let tree = self.parse_expression(&mut iter);
             trees.push(tree);
         }
-
         trees
     }
 
@@ -47,7 +46,7 @@ impl Parser<'_> {
                     let right = self.parse_term(iter);
                     left = Tree::BinOp(Box::new(left), op.clone(), Box::new(right));
                 }
-                Token::EquEqu => {
+                Token::EquEqu | Token::NotEqu => {
                     iter.next();
                     let right = self.parse_term(iter);
                     left = Tree::CmpOp(Box::new(left), op.clone(), Box::new(right));
@@ -152,7 +151,14 @@ impl Parser<'_> {
                     _ => panic!("Expected ("),
                 };
                 let body = self.parse_block(iter);
-                Tree::If(Box::new(expr), body)
+                let else_body = match iter.peek().unwrap() {
+                    Token::Else => {
+                        iter.next();
+                        self.parse_block(iter)
+                    }
+                    _ => vec![],
+                };
+                Tree::If(Box::new(expr), body, else_body)
             }
             Token::Exit => {
                 let expr = self.parse_factor(iter);
