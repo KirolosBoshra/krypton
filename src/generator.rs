@@ -59,13 +59,17 @@ impl Generator {
                         program += &self.gen_linux_64_program(stmt);
                     });
                     program += &self.end_scope();
-                    program += &format!(".LB{}:\n", self.lb_count);
+
                     if !els.is_empty() {
+                        program += &format!("\tjmp .LB{}\n", self.lb_count + 1);
+                        program += &format!(".LB{}:\n", self.lb_count);
                         els.iter().for_each(|stmt| {
                             program += &self.gen_linux_64_program(stmt);
                         });
                         self.lb_count += 1;
                         program += &format!("\tjmp .LB{}\n", self.lb_count);
+                        program += &format!(".LB{}:\n", self.lb_count);
+                    } else {
                         program += &format!(".LB{}:\n", self.lb_count);
                     }
                     iter.next();

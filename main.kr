@@ -1,11 +1,10 @@
 // this a comment
-let x = 8
+let x = (8 * 2) / 2
 let y = 5
 let k = 10
-if (x != 8) {
-    exit(x)
+if (x == 8) {
+    x = (10)
 } else {
 	x = (5)
 }
-
 exit(y + x + k)
