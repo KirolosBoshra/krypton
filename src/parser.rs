@@ -12,6 +12,7 @@ pub enum Tree {
     Let(String, Box<Tree>),
     Assign(String, Box<Tree>),
     If(Box<Tree>, Vec<Tree>, Vec<Tree>),
+    While(Box<Tree>, Vec<Tree>),
 }
 
 pub struct Parser<'a> {
@@ -47,6 +48,11 @@ impl Parser<'_> {
                     left = Tree::BinOp(Box::new(left), op.clone(), Box::new(right));
                 }
                 Token::EquEqu | Token::NotEqu => {
+                    iter.next();
+                    let right = self.parse_term(iter);
+                    left = Tree::CmpOp(Box::new(left), op.clone(), Box::new(right));
+                }
+                Token::Greater | Token::GreatEqu | Token::Less | Token::LessEqu => {
                     iter.next();
                     let right = self.parse_term(iter);
                     left = Tree::CmpOp(Box::new(left), op.clone(), Box::new(right));
@@ -101,13 +107,8 @@ impl Parser<'_> {
             Token::Ident(string) => match iter.peek().unwrap() {
                 Token::Equal => {
                     iter.next();
-                    match iter.peek().unwrap() {
-                        Token::OpenParen => {
-                            let expr = self.parse_factor(iter);
-                            Tree::Assign(string.to_string(), Box::new(expr))
-                        }
-                        _ => panic!("Use (Expr) to ReAssign var"),
-                    }
+                    let expr = self.parse_expression(iter);
+                    Tree::Assign(string.to_string(), Box::new(expr))
                 }
                 _ => Tree::Ident(string.to_string()),
             },
@@ -159,6 +160,18 @@ impl Parser<'_> {
                     _ => vec![],
                 };
                 Tree::If(Box::new(expr), body, else_body)
+            }
+            Token::While => {
+                let expr = match iter.next().unwrap() {
+                    Token::OpenParen => {
+                        let expr = self.parse_expression(iter);
+                        iter.next();
+                        expr
+                    }
+                    _ => panic!("Expected ("),
+                };
+                let body = self.parse_block(iter);
+                Tree::While(Box::new(expr), body)
             }
             Token::Exit => {
                 let expr = self.parse_factor(iter);

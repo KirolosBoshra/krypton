@@ -24,22 +24,15 @@ pub struct Generator {
 
 impl Generator {
     pub fn new(tree: &Vec<Tree>) -> Self {
-        let vars = vec![];
-        let stack = 0;
-        let scopes = vec![];
-        let lb_count = 0;
-        let assembly_out = String::new();
-        let start_section = String::new();
-        let text_section = String::new();
         Self {
             tree: tree.to_vec(),
-            assembly_out,
-            start_section,
-            text_section,
-            vars,
-            lb_count,
-            stack,
-            scopes,
+            vars: vec![],
+            stack: 0,
+            scopes: vec![],
+            lb_count: 0,
+            assembly_out: String::new(),
+            start_section: String::new(),
+            text_section: String::new(),
         }
     }
 
@@ -51,34 +44,8 @@ impl Generator {
         let mut program = String::new();
 
         while let Some(tree) = iter.peek() {
-            match tree {
-                Tree::If(expr, body, els) => {
-                    program.push_str(&self.gen_cmp_exp(expr));
-                    self.begin_scope();
-                    body.iter().for_each(|stmt| {
-                        program += &self.gen_linux_64_program(stmt);
-                    });
-                    program += &self.end_scope();
-
-                    if !els.is_empty() {
-                        program += &format!("\tjmp .LB{}\n", self.lb_count + 1);
-                        program += &format!(".LB{}:\n", self.lb_count);
-                        els.iter().for_each(|stmt| {
-                            program += &self.gen_linux_64_program(stmt);
-                        });
-                        self.lb_count += 1;
-                        program += &format!("\tjmp .LB{}\n", self.lb_count);
-                        program += &format!(".LB{}:\n", self.lb_count);
-                    } else {
-                        program += &format!(".LB{}:\n", self.lb_count);
-                    }
-                    iter.next();
-                }
-                _ => {
-                    program += &self.gen_linux_64_program(tree);
-                    iter.next();
-                }
-            }
+            program += &self.gen_linux_64_program(tree);
+            iter.next();
         }
 
         self.start_section += &program;
@@ -106,6 +73,87 @@ impl Generator {
 
             Tree::Assign(ident, expr) => {
                 program += &self.handle_vars(&ident, &expr);
+            }
+
+            Tree::If(expr, body, els) => {
+                program += &self.gen_cmp_exp(expr);
+                let ex = expr.clone();
+                match *ex {
+                    Tree::CmpOp(_, c, _) => match c {
+                        Token::EquEqu => {
+                            program += &format!("\tjne .LB{}\n", self.lb_count);
+                        }
+                        Token::NotEqu => {
+                            program += &format!("\tje .LB{}\n", self.lb_count);
+                        }
+                        Token::Greater | Token::GreatEqu => {
+                            program += &format!("\tjle .LB{}\n", self.lb_count);
+                        }
+                        Token::Less | Token::LessEqu => {
+                            program += &format!("\tjg .LB{}\n", self.lb_count);
+                        }
+                        _ => (),
+                    },
+                    _ => (),
+                }
+                self.begin_scope();
+                body.iter().for_each(|stmt| {
+                    program += &self.gen_linux_64_program(stmt);
+                });
+                self.end_scope();
+
+                if !els.is_empty() {
+                    program += &format!("\tjmp .LB{}\n", self.lb_count + 1);
+                    program += &format!(".LB{}:\n", self.lb_count);
+                    els.iter().for_each(|stmt| {
+                        program += &self.gen_linux_64_program(stmt);
+                    });
+                    self.lb_count += 1;
+                    program += &format!("\tjmp .LB{}\n", self.lb_count);
+                }
+                program += &format!(".LB{}:\n", self.lb_count);
+            }
+
+            Tree::While(expr, body) => {
+                program += &format!("\tjmp .LB{}\n", self.lb_count + 1);
+                program += &format!(".LB{}:\n", self.lb_count);
+
+                self.begin_scope();
+                body.iter().for_each(|stmt| {
+                    program += &self.gen_linux_64_program(stmt);
+                });
+                self.end_scope();
+
+                self.lb_count += 1;
+                program += &format!(".LB{}:\n", self.lb_count);
+                program += &self.gen_cmp_exp(expr);
+                let ex = expr.clone();
+                match *ex {
+                    Tree::CmpOp(_, c, _) => match c {
+                        Token::EquEqu => {
+                            program += &format!("\tje .LB{}\n", self.lb_count - 1);
+                        }
+                        Token::NotEqu => {
+                            program += &format!("\tjne .LB{}\n", self.lb_count - 1);
+                        }
+                        Token::Greater => {
+                            program += &format!("\tjg .LB{}\n", self.lb_count - 1);
+                        }
+                        Token::GreatEqu => {
+                            program += &format!("\tjge .LB{}\n", self.lb_count - 1);
+                        }
+                        Token::Less => {
+                            program += &format!("\tjl .LB{}\n", self.lb_count - 1);
+                        }
+                        Token::LessEqu => {
+                            program += &format!("\tjle .LB{}\n", self.lb_count - 1);
+                        }
+                        _ => (),
+                    },
+                    _ => (),
+                }
+                self.lb_count += 1;
+                program += &format!(".LB{}:\n", self.lb_count);
             }
 
             Tree::Exit(expr) => {
@@ -165,30 +213,17 @@ impl Generator {
         }
     }
 
-    fn gen_cmp_op(&mut self, left: &Tree, right: &Tree, cmp: &Token) -> String {
+    fn gen_cmp_op(&mut self, left: &Tree, right: &Tree) -> String {
         let mut buffer = String::new();
         buffer += &self.gen_expr(left, "rax");
         buffer += &self.gen_expr(right, "rbx");
         buffer += "\tcmp rax, rbx\n";
-        match cmp {
-            Token::EquEqu => {
-                buffer += &format!("\tjne .LB{}\n", self.lb_count);
-            }
-            Token::NotEqu => {
-                buffer += &format!("\tje .LB{}\n", self.lb_count);
-            }
-            _ => panic!("invalid cmp token"),
-        }
         buffer
     }
 
     fn gen_cmp_exp(&mut self, tree: &Tree) -> String {
         match tree {
-            Tree::CmpOp(left, cmp, right) => match cmp {
-                Token::EquEqu => self.gen_cmp_op(&left, &right, cmp),
-                Token::NotEqu => self.gen_cmp_op(&left, &right, cmp),
-                _ => panic!("not a CMP token"),
-            },
+            Tree::CmpOp(left, _, right) => self.gen_cmp_op(&left, &right),
             _ => panic!("Expected CMP OP"),
         }
     }
@@ -212,16 +247,17 @@ impl Generator {
     fn begin_scope(&mut self) {
         self.scopes.push(self.vars.len())
     }
-    fn end_scope(&mut self) -> String {
+    fn end_scope(&mut self) {
         let pop_count = self.vars.len() - self.scopes.last().unwrap();
-        let mut buffer = String::new();
-        buffer += &format!("\tadd rsp, {}\n", pop_count * 8);
+        // not used for now
+        // let mut buffer = String::new();
+        // buffer += &format!("\tadd rsp, {}\n", pop_count * 8);
         self.stack -= pop_count;
         for _ in 0..pop_count {
             self.vars.pop();
         }
         self.scopes.pop();
-        buffer
+        // buffer
     }
 
     fn find_var(&self, ident: &String) -> &Var {

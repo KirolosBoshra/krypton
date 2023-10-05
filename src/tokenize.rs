@@ -10,6 +10,10 @@ pub enum Token {
     EquEqu,
     ExMark,
     NotEqu,
+    Greater,
+    Less,
+    GreatEqu,
+    LessEqu,
     OpenParen,
     CloseParen,
     OpenCurly,
@@ -20,6 +24,7 @@ pub enum Token {
     Ident(String),
     If,
     Else,
+    While,
 }
 
 #[derive(Debug, Clone)]
@@ -52,6 +57,7 @@ impl Tokenizer<'_> {
                         "let" => tokens.push(Token::Let),
                         "if" => tokens.push(Token::If),
                         "else" => tokens.push(Token::Else),
+                        "while" => tokens.push(Token::While),
                         _ => tokens.push(Token::Ident(buf)),
                     }
                 }
@@ -139,6 +145,25 @@ impl Tokenizer<'_> {
                         iter.next();
                     } else {
                         tokens.push(Token::ExMark);
+                    }
+                }
+                '>' => {
+                    iter.next();
+                    if *iter.peek().unwrap() == '=' {
+                        tokens.push(Token::GreatEqu);
+                        iter.next();
+                    } else {
+                        tokens.push(Token::Greater);
+                    }
+                }
+
+                '<' => {
+                    iter.next();
+                    if *iter.peek().unwrap() == '=' {
+                        tokens.push(Token::LessEqu);
+                        iter.next();
+                    } else {
+                        tokens.push(Token::Less);
                     }
                 }
                 ';' => {
