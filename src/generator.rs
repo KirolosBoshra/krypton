@@ -76,6 +76,13 @@ impl Generator {
             }
 
             Tree::If(expr, body, els) => {
+                let mut body_cont = String::new();
+                self.begin_scope();
+                body.iter().for_each(|stmt| {
+                    body_cont += &self.gen_linux_64_program(stmt);
+                });
+                self.end_scope();
+
                 program += &self.gen_cmp_exp(expr);
                 let ex = expr.clone();
                 match *ex {
@@ -96,26 +103,22 @@ impl Generator {
                     },
                     _ => (),
                 }
-                self.begin_scope();
-                body.iter().for_each(|stmt| {
-                    program += &self.gen_linux_64_program(stmt);
-                });
-                self.end_scope();
-
+                program += &body_cont;
+                program += &format!(".LB{}:\n", self.lb_count);
                 if !els.is_empty() {
-                    program += &format!("\tjmp .LB{}\n", self.lb_count + 1);
+                    self.lb_count += 1;
+                    program += &format!("\tjmp .LB{}\n", self.lb_count);
                     program += &format!(".LB{}:\n", self.lb_count);
                     els.iter().for_each(|stmt| {
                         program += &self.gen_linux_64_program(stmt);
                     });
-                    self.lb_count += 1;
-                    program += &format!("\tjmp .LB{}\n", self.lb_count);
                 }
-                program += &format!(".LB{}:\n", self.lb_count);
+                self.lb_count += 1;
             }
 
             Tree::While(expr, body) => {
-                program += &format!("\tjmp .LB{}\n", self.lb_count + 1);
+                self.lb_count += 1;
+                program += &format!("\tjmp .LB{}\n", self.lb_count);
                 program += &format!(".LB{}:\n", self.lb_count);
 
                 self.begin_scope();
