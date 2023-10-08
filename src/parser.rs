@@ -11,7 +11,16 @@ pub enum Tree {
     Exit(Box<Tree>),
     Let(String, Box<Tree>),
     Assign(String, Box<Tree>),
-    If(Box<Tree>, Vec<Tree>, Vec<Tree>),
+    If {
+        expr: Box<Tree>,
+        body: Vec<Tree>,
+        els: Vec<Tree>,
+        els_ifs: Vec<Tree>,
+    },
+    ElsIf {
+        expr: Box<Tree>,
+        body: Vec<Tree>,
+    },
     While(Box<Tree>, Vec<Tree>),
 }
 
@@ -97,9 +106,53 @@ impl Parser<'_> {
                     }
                 }
             }
-            _ => panic!("Expected {{"),
+            _ => {
+                println!("{:?}", iter);
+                panic!("Expected {{")
+            }
         }
         body
+    }
+    fn parse_paren_expr(
+        &mut self,
+        iter: &mut std::iter::Peekable<std::slice::Iter<Token>>,
+    ) -> Tree {
+        match iter.next().unwrap() {
+            Token::OpenParen => {
+                let expr = self.parse_expression(iter);
+                iter.next();
+                expr
+            }
+            _ => {
+                println!("{:?}", iter);
+                panic!("Expected (")
+            }
+        }
+    }
+
+    fn next_cond(
+        &mut self,
+        iter: &mut std::iter::Peekable<std::slice::Iter<'_, Token>>,
+        els: &mut Vec<Tree>,
+        els_ifs: &mut Vec<Tree>,
+    ) {
+        match iter.peek().unwrap() {
+            Token::Els => {
+                iter.next();
+                if !els.is_empty() {
+                    panic!("Excessive else statements")
+                }
+                *els = self.parse_block(iter);
+            }
+            Token::ElsIf => {
+                iter.next();
+                let expr = Box::new(self.parse_paren_expr(iter));
+                let body = self.parse_block(iter);
+                els_ifs.push(Tree::ElsIf { expr, body });
+                self.next_cond(iter, els, els_ifs);
+            }
+            _ => (),
+        }
     }
     fn parse_factor(&mut self, iter: &mut std::iter::Peekable<std::slice::Iter<Token>>) -> Tree {
         match iter.next().unwrap() {
@@ -143,23 +196,17 @@ impl Parser<'_> {
                 _ => panic!("Expected identifier after 'let'"),
             },
             Token::If => {
-                let expr = match iter.next().unwrap() {
-                    Token::OpenParen => {
-                        let expr = self.parse_expression(iter);
-                        iter.next();
-                        expr
-                    }
-                    _ => panic!("Expected ("),
-                };
+                let mut els = vec![];
+                let mut els_ifs = vec![];
+                let expr = self.parse_paren_expr(iter);
                 let body = self.parse_block(iter);
-                let else_body = match iter.peek().unwrap() {
-                    Token::Else => {
-                        iter.next();
-                        self.parse_block(iter)
-                    }
-                    _ => vec![],
-                };
-                Tree::If(Box::new(expr), body, else_body)
+                self.next_cond(iter, &mut els, &mut els_ifs);
+                Tree::If {
+                    expr: Box::new(expr),
+                    body,
+                    els,
+                    els_ifs,
+                }
             }
             Token::While => {
                 let expr = match iter.next().unwrap() {
@@ -177,6 +224,7 @@ impl Parser<'_> {
                 let expr = self.parse_factor(iter);
                 Tree::Exit(Box::new(expr))
             }
+            Token::Els | Token::ElsIf => panic!("Expected If statement first"),
             _ => {
                 println!("{:?}", iter);
                 panic!("Invalid factor")

@@ -1,9 +1,9 @@
-// this a comment
 let x = 0
-let y = 10
-if (x > y) {
-    while (x > y) {
-        x = x - 1
-    }
+if (x == 5) {
+    exit(1)
+} elsif (x == 6) {
+    exit(2)   
+} els {
+    exit(3)
 }
 exit(x)

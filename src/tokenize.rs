@@ -23,7 +23,8 @@ pub enum Token {
     Exit,
     Ident(String),
     If,
-    Else,
+    Els,
+    ElsIf,
     While,
 }
 
@@ -56,7 +57,8 @@ impl Tokenizer<'_> {
                         "exit" => tokens.push(Token::Exit),
                         "let" => tokens.push(Token::Let),
                         "if" => tokens.push(Token::If),
-                        "else" => tokens.push(Token::Else),
+                        "els" => tokens.push(Token::Els),
+                        "elsif" => tokens.push(Token::ElsIf),
                         "while" => tokens.push(Token::While),
                         _ => tokens.push(Token::Ident(buf)),
                     }
