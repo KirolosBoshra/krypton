@@ -3,7 +3,9 @@ pub enum Token {
     Number(i32),
     Str(String),
     Plus,
+    DPlue,
     Minus,
+    DMinus,
     Multiply,
     Divide,
     Equal,
@@ -19,6 +21,9 @@ pub enum Token {
     OpenCurly,
     CloseCurly,
     Semi,
+    Dot,
+    DDot,
+    ThinArrow,
     Let,
     Exit,
     Ident(String),
@@ -26,14 +31,15 @@ pub enum Token {
     Els,
     ElsIf,
     While,
+    For,
 }
 
 #[derive(Debug, Clone)]
-pub struct Tokenizer<'a> {
-    input: &'a str,
+pub struct Tokenizer {
+    input: String,
 }
-impl Tokenizer<'_> {
-    pub fn new(input: &str) -> Tokenizer {
+impl Tokenizer {
+    pub fn new(input: String) -> Tokenizer {
         Tokenizer { input }
     }
 
@@ -60,6 +66,7 @@ impl Tokenizer<'_> {
                         "els" => tokens.push(Token::Els),
                         "elsif" => tokens.push(Token::ElsIf),
                         "while" => tokens.push(Token::While),
+                        "for" => tokens.push(Token::For),
                         _ => tokens.push(Token::Ident(buf)),
                     }
                 }
@@ -110,12 +117,27 @@ impl Tokenizer<'_> {
                     iter.next();
                 }
                 '+' => {
-                    tokens.push(Token::Plus);
                     iter.next();
+                    if *iter.peek().unwrap() == '+' {
+                        iter.next();
+                        tokens.push(Token::DPlue);
+                    } else {
+                        tokens.push(Token::Plus);
+                    }
                 }
                 '-' => {
-                    tokens.push(Token::Minus);
                     iter.next();
+                    match *iter.peek().unwrap() {
+                        '-' => {
+                            iter.next();
+                            tokens.push(Token::DMinus);
+                        }
+                        '>' => {
+                            iter.next();
+                            tokens.push(Token::ThinArrow);
+                        }
+                        _ => tokens.push(Token::Minus),
+                    }
                 }
                 '*' => {
                     tokens.push(Token::Multiply);
@@ -166,6 +188,15 @@ impl Tokenizer<'_> {
                         iter.next();
                     } else {
                         tokens.push(Token::Less);
+                    }
+                }
+                '.' => {
+                    iter.next();
+                    if *iter.peek().unwrap() == '.' {
+                        tokens.push(Token::DDot);
+                        iter.next();
+                    } else {
+                        tokens.push(Token::Dot);
                     }
                 }
                 ';' => {

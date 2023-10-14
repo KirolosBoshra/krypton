@@ -17,7 +17,6 @@ pub struct Generator {
     start_section: String,
     text_section: String,
     vars: Vec<Var>,
-    lb_count: usize,
     stack: usize,
     scopes: Vec<usize>,
 }
@@ -29,7 +28,6 @@ impl Generator {
             vars: vec![],
             stack: 0,
             scopes: vec![],
-            lb_count: 0,
             assembly_out: String::new(),
             start_section: String::new(),
             text_section: String::new(),
@@ -60,6 +58,7 @@ impl Generator {
         let mut program = String::new();
         match tree {
             Tree::Let(ident, expr) => {
+                program += &format!("\t;; Let {} = {:?} ;;\n", ident, expr);
                 if self.vars.iter().any(|var| var.name == ident.to_string()) {
                     panic!(
                         "{} is already declared use {} = ({:?}) instead",
@@ -72,87 +71,107 @@ impl Generator {
             }
 
             Tree::Assign(ident, expr) => {
+                program += &format!("\t;; {} = {:?} ;;\n", ident, expr);
                 program += &self.handle_vars(&ident, &expr);
+            }
+
+            Tree::Inc(var) => {
+                program += &format!("\t;; {}++ ;;\n", var);
+                program += &format!("\tinc QWORD [rsp + {}]\n", self.find_var(var).stack_loc * 8)
+            }
+
+            Tree::Dec(var) => {
+                program += &format!("\t;; {}-- ;;\n", var);
+                program += &format!("\tdec QWORD [rsp + {}]\n", self.find_var(var).stack_loc * 8)
             }
 
             Tree::If {
                 expr,
                 body,
+                last_case,
+                next_case,
                 els,
                 els_ifs,
             } => {
-                program += &self.gen_if_stmt(expr, body);
-                els_ifs.iter().for_each(|block| match block {
-                    Tree::ElsIf { expr, body } => {
-                        self.lb_count += 1;
-                        program += &self.gen_if_stmt(expr, body);
-                    }
-                    _ => (),
-                });
-                if !els.is_empty() {
-                    self.lb_count += 1;
-                    program += &format!("\tjmp .LB{}\n", self.lb_count);
-                    program += &format!(".LB{}:\n", self.lb_count);
-                    els.iter().for_each(|stmt| {
-                        program += &self.gen_linux_64_program(stmt);
+                program += &format!("\t;; If({:?}) ;;\n", expr);
+                program += &self.gen_if_cmp(expr, next_case);
+                program += &self.create_scope(body);
+                if next_case == last_case {
+                    program += &format!(".LB{}:\n", next_case);
+                } else {
+                    program += &format!("\tjmp .LB{}\n", last_case);
+                    els_ifs.iter().for_each(|stmt| {
+                        program += &self.gen_elsif_stmt(stmt, last_case);
                     });
+                    if !els.is_empty() {
+                        program += "\t;; Els ;;\n";
+                        program += &format!(".LB{}:\n", last_case - 1);
+                        program += &self.create_scope(els);
+                        program += &format!(".LB{}:\n", last_case);
+                        program += "\t;; End Els ;;\n";
+                    }
                 }
-                self.lb_count += 1;
+                program += "\t;; End If ;;\n";
             }
 
-            Tree::While(expr, body) => {
-                self.lb_count += 1;
-                program += &format!("\tjmp .LB{}\n", self.lb_count);
-                program += &format!(".LB{}:\n", self.lb_count);
-
-                self.begin_scope();
-                body.iter().for_each(|stmt| {
-                    program += &self.gen_linux_64_program(stmt);
-                });
-                self.end_scope();
-
-                self.lb_count += 1;
-                program += &format!(".LB{}:\n", self.lb_count);
+            Tree::While {
+                expr,
+                start,
+                body,
+                end,
+            } => {
+                program += &format!("\t;; While({:?}) ;;\n", expr);
+                program += &format!("\tjmp .LB{}\n", end);
+                program += &format!(".LB{}:\n", start);
+                program += &self.create_scope(body);
+                program += &format!(".LB{}:\n", end);
                 program += &self.gen_cmp_exp(expr);
-                let ex = expr.clone();
-                match *ex {
-                    Tree::CmpOp(_, c, _) => match c {
-                        Token::EquEqu => {
-                            program += &format!("\tje .LB{}\n", self.lb_count - 1);
-                        }
-                        Token::NotEqu => {
-                            program += &format!("\tjne .LB{}\n", self.lb_count - 1);
-                        }
-                        Token::Greater => {
-                            program += &format!("\tjg .LB{}\n", self.lb_count - 1);
-                        }
-                        Token::GreatEqu => {
-                            program += &format!("\tjge .LB{}\n", self.lb_count - 1);
-                        }
-                        Token::Less => {
-                            program += &format!("\tjl .LB{}\n", self.lb_count - 1);
-                        }
-                        Token::LessEqu => {
-                            program += &format!("\tjle .LB{}\n", self.lb_count - 1);
-                        }
-                        _ => (),
-                    },
-                    _ => (),
-                }
-                self.lb_count += 1;
-                program += &format!(".LB{}:\n", self.lb_count);
+                program += &self.create_while_cmp(expr, start);
+                program += "\t;; End While ;;\n";
             }
 
+            // Tree::For { var, expr, body } => {}
             Tree::Exit(expr) => {
+                program += &format!("\t;; Exit({:?}) ;;\n", expr);
                 program += &self.gen_expr(&expr, "rax");
                 program += &self.push("rax");
                 program += "\tmov rax, 60\n";
                 program += &self.pop("rdi");
                 program += "\tsyscall\n";
+                program += "\t;; End Exit ;;\n";
             }
             _ => (),
         }
         program
+    }
+
+    fn gen_elsif_stmt(&mut self, stmt: &Tree, last_case: &usize) -> String {
+        let mut buffer = String::new();
+        match stmt {
+            Tree::ElsIf {
+                curr_case,
+                expr,
+                body,
+                next_case,
+            } => {
+                buffer += &format!("\t;; ElsIf({:?}) ;;\n", expr);
+                buffer += &format!(".LB{}:\n", curr_case);
+                buffer += &self.gen_if_cmp(expr, next_case);
+                self.begin_scope();
+                body.iter().for_each(|stmt| {
+                    buffer += &self.gen_linux_64_program(stmt);
+                });
+                self.end_scope();
+                if next_case != last_case {
+                    buffer += &format!("\tjmp .LB{}\n", last_case);
+                } else {
+                    buffer += &format!(".LB{}:\n", last_case);
+                }
+                buffer += "\t;; End ElsIf ;;\n";
+            }
+            _ => (),
+        }
+        buffer
     }
 
     fn gen_expr(&mut self, tree: &Tree, reg: &str) -> String {
@@ -215,6 +234,67 @@ impl Generator {
         }
     }
 
+    fn gen_if_cmp(&mut self, expr: &Tree, next_case: &usize) -> String {
+        let mut buffer = String::new();
+        match expr {
+            Tree::CmpOp(l, c, r) => {
+                buffer += &self.gen_cmp_op(&l, &r);
+                match c {
+                    Token::EquEqu => {
+                        buffer += &format!("\tjne .LB{}\n", next_case);
+                    }
+                    Token::NotEqu => {
+                        buffer += &format!("\tje .LB{}\n", next_case);
+                    }
+                    Token::Greater => {
+                        buffer += &format!("\tjle .LB{}\n", next_case);
+                    }
+                    Token::GreatEqu => {
+                        buffer += &format!("\tjl .LB{}\n", next_case);
+                    }
+                    Token::Less => {
+                        buffer += &format!("\tjge .LB{}\n", next_case);
+                    }
+                    Token::LessEqu => {
+                        buffer += &format!("\tjg .LB{}\n", next_case);
+                    }
+                    _ => (),
+                }
+            }
+            _ => (),
+        }
+        buffer
+    }
+
+    fn create_while_cmp(&mut self, expr: &Tree, start: &usize) -> String {
+        let mut buffer = String::new();
+        match expr {
+            Tree::CmpOp(_, c, _) => match c {
+                Token::EquEqu => {
+                    buffer += &format!("\tje .LB{}\n", start);
+                }
+                Token::NotEqu => {
+                    buffer += &format!("\tjne .LB{}\n", start);
+                }
+                Token::Greater => {
+                    buffer += &format!("\tjg .LB{}\n", start);
+                }
+                Token::GreatEqu => {
+                    buffer += &format!("\tjge .LB{}\n", start);
+                }
+                Token::Less => {
+                    buffer += &format!("\tjl .LB{}\n", start);
+                }
+                Token::LessEqu => {
+                    buffer += &format!("\tjle .LB{}\n", start);
+                }
+                _ => (),
+            },
+            _ => (),
+        }
+        buffer
+    }
+
     fn handle_vars(&mut self, ident: &String, expr: &Tree) -> String {
         let mut buffer = String::new();
         match *expr {
@@ -228,40 +308,6 @@ impl Generator {
                 buffer.push_str(&format!("\tmov QWORD [rsp + {}], rax\n", stack_loc));
             }
         }
-        buffer
-    }
-
-    fn gen_if_stmt(&mut self, expr: &Tree, body: &Vec<Tree>) -> String {
-        let mut buffer = String::new();
-        let mut body_cont = String::new();
-        self.begin_scope();
-        body.iter().for_each(|stmt| {
-            body_cont += &self.gen_linux_64_program(stmt);
-        });
-        self.end_scope();
-
-        buffer += &self.gen_cmp_exp(expr);
-        let ex = expr.clone();
-        match ex {
-            Tree::CmpOp(_, c, _) => match c {
-                Token::EquEqu => {
-                    buffer += &format!("\tjne .LB{}\n", self.lb_count);
-                }
-                Token::NotEqu => {
-                    buffer += &format!("\tje .LB{}\n", self.lb_count);
-                }
-                Token::Greater | Token::GreatEqu => {
-                    buffer += &format!("\tjle .LB{}\n", self.lb_count);
-                }
-                Token::Less | Token::LessEqu => {
-                    buffer += &format!("\tjg .LB{}\n", self.lb_count);
-                }
-                _ => (),
-            },
-            _ => (),
-        }
-        buffer += &body_cont;
-        buffer += &format!(".LB{}:\n", self.lb_count);
         buffer
     }
 
@@ -280,7 +326,15 @@ impl Generator {
         self.scopes.pop();
         // buffer
     }
-
+    fn create_scope(&mut self, body: &Vec<Tree>) -> String {
+        let mut buffer = String::new();
+        self.begin_scope();
+        body.iter().for_each(|stmt| {
+            buffer += &self.gen_linux_64_program(stmt);
+        });
+        self.end_scope();
+        buffer
+    }
     fn find_var(&self, ident: &String) -> &Var {
         self.vars
             .iter()

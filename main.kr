@@ -1,9 +1,25 @@
 let x = 0
-if (x == 5) {
-    exit(1)
-} elsif (x == 6) {
-    exit(2)   
-} els {
-    exit(3)
+let y = 5
+let i = x
+
+// while (x != y) {
+//   if (x < y) {
+//     x++
+//   } els {
+//     x--
+//   }
+//   i = x
+// }
+
+if (x < y) {
+    while (x != y) {
+        x++
+    }
+} elsif (x > y) {
+    while (x != y) {
+        x--
+    }
 }
-exit(x)
+
+i = x
+exit(x+i)

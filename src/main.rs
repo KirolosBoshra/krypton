@@ -12,7 +12,7 @@ fn main() {
     let mut file = File::open("main.kr").expect("Can't open file");
     file.read_to_string(&mut input).expect("can't read file");
 
-    let tokenizer = Tokenizer::new(&input);
+    let tokenizer = Tokenizer::new(input);
     let tokens = tokenizer.tokenize();
 
     let mut ast = Parser::new(&tokens);
