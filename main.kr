@@ -1,25 +1,9 @@
-let x = 0
-let y = 5
+let x = 10
+let y = 0
 let i = x
-
-// while (x != y) {
-//   if (x < y) {
-//     x++
-//   } els {
-//     x--
-//   }
-//   i = x
-// }
-
-if (x < y) {
-    while (x != y) {
-        x++
-    }
-} elsif (x > y) {
-    while (x != y) {
-        x--
-    }
+let inc = (x < y) - (x > y)
+while(i != y) {
+	i = i + inc
 }
 
-i = x
-exit(x+i)
+exit(i)

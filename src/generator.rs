@@ -61,7 +61,7 @@ impl Generator {
                 program += &format!("\t;; Let {} = {:?} ;;\n", ident, expr);
                 if self.vars.iter().any(|var| var.name == ident.to_string()) {
                     panic!(
-                        "{} is already declared use {} = ({:?}) instead",
+                        "{} is already declared use {} = {:?} instead",
                         ident, ident, expr
                     );
                 }
@@ -126,7 +126,8 @@ impl Generator {
                 program += &self.create_scope(body);
                 program += &format!(".LB{}:\n", end);
                 program += &self.gen_cmp_exp(expr);
-                program += &self.create_while_cmp(expr, start);
+                program += "\ttest al, 1\n";
+                program += &format!("\tjnz .LB{}\n", start);
                 program += "\t;; End While ;;\n";
             }
 
@@ -188,21 +189,52 @@ impl Generator {
             }
             Tree::BinOp(..) => self.gen_bin_exp(tree),
             Tree::CmpOp(..) => self.gen_cmp_exp(tree),
+            Tree::Empty() => String::new(),
             _ => panic!("Unexpected expr"),
         }
     }
 
     fn gen_bin_op(&mut self, left: &Tree, right: &Tree, op: &str) -> String {
         let mut buffer = String::new();
+        buffer += &format!("\t;; BinOp({:?} {op} {:?}) ;;\n", left, right);
+        let mut lreg = "rax";
+        let mut rreg = "rbx";
         buffer += &self.gen_expr(left, "rax");
-        buffer += &self.gen_expr(right, "rbx");
+        match left {
+            Tree::BinOp(..) | Tree::CmpOp(..) => {
+                buffer += "\tmov rcx, rax\n";
+                buffer += &self.gen_expr(right, "rbx");
+                lreg = "rcx";
+                match right {
+                    Tree::BinOp(..) | Tree::CmpOp(..) => {
+                        rreg = "rax";
+                    }
+                    _ => (),
+                }
+            }
+            _ => {
+                buffer += &self.gen_expr(right, "rbx");
+            }
+        }
         match op {
             "div" => {
+                if lreg != "rax" {
+                    lreg = "rax";
+                    buffer += &format!("\tmov rax, {lreg}\n");
+                }
+                if rreg != "rbx" {
+                    rreg = "rbx";
+                    buffer += &format!("\tmov rbx, {rreg}\n");
+                }
                 buffer += "\txor rdx, rdx\n";
-                buffer += &format!("\t{} rbx\n", op);
+                buffer += &format!("\t{} {rreg}\n", op);
             }
-            _ => buffer += &format!("\t{} rax, rbx\n", op),
+            _ => buffer += &format!("\t{} {lreg}, {rreg}\n", op),
         }
+        if lreg != "rax" {
+            buffer += &format!("\tmov rax, {lreg}\n");
+        }
+        buffer += &format!("\t;; End BinOp({:?} {op} {:?}) ;;\n", left, right);
         buffer
     }
 
@@ -219,79 +251,39 @@ impl Generator {
         }
     }
 
-    fn gen_cmp_op(&mut self, left: &Tree, right: &Tree) -> String {
+    fn gen_cmp_op(&mut self, left: &Tree, op: &str, right: &Tree) -> String {
         let mut buffer = String::new();
         buffer += &self.gen_expr(left, "rax");
         buffer += &self.gen_expr(right, "rbx");
         buffer += "\tcmp rax, rbx\n";
+        buffer += &format!("\t{} al\n", op);
+        buffer += &format!("\tmovzx rax, al\n");
         buffer
     }
 
     fn gen_cmp_exp(&mut self, tree: &Tree) -> String {
         match tree {
-            Tree::CmpOp(left, _, right) => self.gen_cmp_op(&left, &right),
+            Tree::CmpOp(left, op, right) => {
+                let op_str = match op {
+                    Token::EquEqu => "sete",
+                    Token::NotEqu => "setne",
+                    Token::Greater => "setg",
+                    Token::GreatEqu => "setge",
+                    Token::Less => "setl",
+                    Token::LessEqu => "setle",
+                    _ => "",
+                };
+                self.gen_cmp_op(&left, op_str, &right)
+            }
             _ => panic!("Expected CMP OP"),
         }
     }
 
     fn gen_if_cmp(&mut self, expr: &Tree, next_case: &usize) -> String {
         let mut buffer = String::new();
-        match expr {
-            Tree::CmpOp(l, c, r) => {
-                buffer += &self.gen_cmp_op(&l, &r);
-                match c {
-                    Token::EquEqu => {
-                        buffer += &format!("\tjne .LB{}\n", next_case);
-                    }
-                    Token::NotEqu => {
-                        buffer += &format!("\tje .LB{}\n", next_case);
-                    }
-                    Token::Greater => {
-                        buffer += &format!("\tjle .LB{}\n", next_case);
-                    }
-                    Token::GreatEqu => {
-                        buffer += &format!("\tjl .LB{}\n", next_case);
-                    }
-                    Token::Less => {
-                        buffer += &format!("\tjge .LB{}\n", next_case);
-                    }
-                    Token::LessEqu => {
-                        buffer += &format!("\tjg .LB{}\n", next_case);
-                    }
-                    _ => (),
-                }
-            }
-            _ => (),
-        }
-        buffer
-    }
-
-    fn create_while_cmp(&mut self, expr: &Tree, start: &usize) -> String {
-        let mut buffer = String::new();
-        match expr {
-            Tree::CmpOp(_, c, _) => match c {
-                Token::EquEqu => {
-                    buffer += &format!("\tje .LB{}\n", start);
-                }
-                Token::NotEqu => {
-                    buffer += &format!("\tjne .LB{}\n", start);
-                }
-                Token::Greater => {
-                    buffer += &format!("\tjg .LB{}\n", start);
-                }
-                Token::GreatEqu => {
-                    buffer += &format!("\tjge .LB{}\n", start);
-                }
-                Token::Less => {
-                    buffer += &format!("\tjl .LB{}\n", start);
-                }
-                Token::LessEqu => {
-                    buffer += &format!("\tjle .LB{}\n", start);
-                }
-                _ => (),
-            },
-            _ => (),
-        }
+        buffer += &self.gen_cmp_exp(&expr);
+        buffer += "\ttest al, 1\n";
+        buffer += &format!("\tjz .LB{}\n", next_case);
         buffer
     }
 

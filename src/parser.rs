@@ -292,13 +292,15 @@ impl Parser {
                     _ => panic!("Expected ->"),
                 },
                 Token::OpenParen => {
+                    self.craete_lb();
                     let start = self.lb_count;
                     let expr = Box::new(self.parse_expression(iter));
                     iter.next();
                     self.craete_lb();
                     let body = self.parse_block(iter);
+                    self.craete_lb();
                     let end = self.lb_count;
-                    // self.craete_lb();
+                    self.craete_lb();
                     Tree::While {
                         expr,
                         start,
