@@ -217,7 +217,6 @@ impl Generator {
         match left {
             Tree::BinOp(..) | Tree::CmpOp(..) => {
                 buffer += "\tmov rcx, rax\n";
-                buffer += &self.gen_expr(right, "rbx");
                 lreg = "rcx";
                 match right {
                     Tree::BinOp(..) | Tree::CmpOp(..) => {
@@ -226,10 +225,15 @@ impl Generator {
                     _ => (),
                 }
             }
-            _ => {
-                buffer += &self.gen_expr(right, "rbx");
-            }
+            _ => match right {
+                Tree::BinOp(..) | Tree::CmpOp(..) => {
+                    buffer += "\tmov rcx, rax\n";
+                    lreg = "rcx";
+                }
+                _ => (),
+            },
         }
+        buffer += &self.gen_expr(right, "rbx");
         match op {
             "div" => {
                 if lreg != "rax" {
@@ -266,9 +270,17 @@ impl Generator {
     }
 
     fn gen_cmp_op(&mut self, left: &Tree, op: &str, right: &Tree) -> String {
+        //[TODO] introducing binops and
         let mut buffer = String::new();
         buffer += &self.gen_expr(left, "rax");
-        buffer += &self.gen_expr(right, "rbx");
+        match right {
+            Tree::BinOp(..) | Tree::CmpOp(..) => {
+                buffer += "\tmov rcx, rax\n";
+                buffer += &self.gen_expr(right, "rbx");
+                buffer += "\tmov rax, rcx\n";
+            }
+            _ => buffer += &self.gen_expr(right, "rbx"),
+        }
         buffer += "\tcmp rax, rbx\n";
         buffer += &format!("\t{} al\n", op);
         buffer += &format!("\tmovzx rax, al\n");

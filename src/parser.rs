@@ -80,17 +80,17 @@ impl Parser {
                 }
                 Token::EquEqu | Token::NotEqu => {
                     iter.next();
-                    let right = self.parse_term(iter);
+                    let right = self.parse_expression(iter);
                     left = Tree::CmpOp(Box::new(left), op.clone(), Box::new(right));
                 }
                 Token::Greater | Token::GreatEqu | Token::Less | Token::LessEqu => {
                     iter.next();
-                    let right = self.parse_term(iter);
+                    let right = self.parse_expression(iter);
                     left = Tree::CmpOp(Box::new(left), op.clone(), Box::new(right));
                 }
                 Token::DDot => {
                     iter.next();
-                    let right = self.parse_term(iter);
+                    let right = self.parse_expression(iter);
                     left = Tree::CmpOp(Box::new(left), op.clone(), Box::new(right));
                 }
                 _ => break,

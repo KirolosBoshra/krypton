@@ -1,10 +1,10 @@
 let x = 97
-let y = 123
+let y = 122
 let new_line = 10
 let i = x
 let inc = (x < y) - (x > y)
 // [NOTE] write syscall (and other syscalls) rsi should be a pointer
-while (i != y) {
+while (i != y+1) {
 	syscall(1, 1, i, 1)
 	syscall(1, 1, new_line, 1)
 		i = i + inc
