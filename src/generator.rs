@@ -270,7 +270,6 @@ impl Generator {
     }
 
     fn gen_cmp_op(&mut self, left: &Tree, op: &str, right: &Tree) -> String {
-        //[TODO] introducing binops and
         let mut buffer = String::new();
         buffer += &self.gen_expr(left, "rax");
         match right {
