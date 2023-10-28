@@ -20,6 +20,7 @@ pub enum Token {
     CloseParen,
     OpenCurly,
     CloseCurly,
+    Comma,
     Semi,
     Dot,
     DDot,
@@ -32,6 +33,7 @@ pub enum Token {
     ElsIf,
     While,
     For,
+    SysCall,
 }
 
 #[derive(Debug, Clone)]
@@ -67,6 +69,7 @@ impl Tokenizer {
                         "elsif" => tokens.push(Token::ElsIf),
                         "while" => tokens.push(Token::While),
                         "for" => tokens.push(Token::For),
+                        "syscall" => tokens.push(Token::SysCall),
                         _ => tokens.push(Token::Ident(buf)),
                     }
                 }
@@ -198,6 +201,10 @@ impl Tokenizer {
                     } else {
                         tokens.push(Token::Dot);
                     }
+                }
+                ',' => {
+                    iter.next();
+                    tokens.push(Token::Comma);
                 }
                 ';' => {
                     tokens.push(Token::Semi);

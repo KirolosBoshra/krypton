@@ -38,6 +38,7 @@ pub enum Tree {
         expr: Box<Tree>,
         body: Vec<Tree>,
     },
+    SysCall(Vec<Tree>),
 }
 
 pub struct Parser {
@@ -151,6 +152,23 @@ impl Parser {
             }
             _ => panic!("Expected ("),
         }
+    }
+
+    fn parse_args(&mut self, iter: &mut std::iter::Peekable<std::slice::Iter<Token>>) -> Vec<Tree> {
+        let mut vec_buffer: Vec<Tree> = vec![];
+        while let Some(next) = iter.peek().cloned() {
+            match next {
+                Token::Comma => {
+                    iter.next();
+                }
+                Token::CloseParen => {
+                    iter.next();
+                    break;
+                }
+                _ => vec_buffer.push(self.parse_expression(iter)),
+            }
+        }
+        vec_buffer
     }
 
     fn next_case(
@@ -309,6 +327,16 @@ impl Parser {
                     }
                 }
                 _ => panic!("Expected (Expr) or Var -> (expr..expr)"),
+            },
+            Token::SysCall => match iter.next().unwrap() {
+                Token::OpenParen => {
+                    let args = self.parse_args(iter);
+                    if args.len() > 7 {
+                        panic!("Excessive Args")
+                    }
+                    Tree::SysCall(args)
+                }
+                _ => panic!("Expected (..)"),
             },
             Token::Exit => {
                 let expr = self.parse_factor(iter);

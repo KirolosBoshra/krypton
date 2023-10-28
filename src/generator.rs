@@ -11,6 +11,8 @@ impl Var {
     }
 }
 
+static SYSCALL_REGS: [&str; 6] = ["rdi", "rsi", "rdx", "r10", "r8", "r9"];
+
 pub struct Generator {
     tree: Vec<Tree>,
     assembly_out: String,
@@ -132,6 +134,14 @@ impl Generator {
             }
 
             // Tree::For { var, expr, body } => {}
+            Tree::SysCall(args) => {
+                for i in 1..args.len() {
+                    program += &self.gen_expr(&args[i], SYSCALL_REGS[i - 1]);
+                }
+                program += &self.gen_expr(&args[0], "rax");
+                program += "\tsyscall\n";
+            }
+
             Tree::Exit(expr) => {
                 program += &format!("\t;; Exit({:?}) ;;\n", expr);
                 program += &self.gen_expr(&expr, "rax");
@@ -176,25 +186,29 @@ impl Generator {
     }
 
     fn gen_expr(&mut self, tree: &Tree, reg: &str) -> String {
+        let mut mov = "mov";
+        if reg == "rsi" {
+            mov = "lea";
+        }
         match tree {
             Tree::Number(num) => {
-                format!("\tmov {}, {}\n", reg, num)
+                format!("\t{mov} {}, {}\n", reg, num)
             }
             Tree::Ident(var) => {
                 format!(
-                    "\tmov {}, QWORD [rsp + {}]\n",
+                    "\t{mov} {}, QWORD [rsp + {}]\n",
                     reg,
                     (self.find_var(var).stack_loc * 8)
                 )
             }
-            Tree::BinOp(..) => self.gen_bin_exp(tree),
+            Tree::BinOp(..) => self.gen_bin_exp(tree, reg),
             Tree::CmpOp(..) => self.gen_cmp_exp(tree),
             Tree::Empty() => String::new(),
             _ => panic!("Unexpected expr"),
         }
     }
 
-    fn gen_bin_op(&mut self, left: &Tree, right: &Tree, op: &str) -> String {
+    fn gen_bin_op(&mut self, left: &Tree, right: &Tree, op: &str, reg: &str) -> String {
         let mut buffer = String::new();
         buffer += &format!("\t;; BinOp({:?} {op} {:?}) ;;\n", left, right);
         let mut lreg = "rax";
@@ -231,20 +245,20 @@ impl Generator {
             }
             _ => buffer += &format!("\t{} {lreg}, {rreg}\n", op),
         }
-        if lreg != "rax" {
-            buffer += &format!("\tmov rax, {lreg}\n");
+        if lreg != reg {
+            buffer += &format!("\tmov {reg}, {lreg}\n");
         }
         buffer += &format!("\t;; End BinOp({:?} {op} {:?}) ;;\n", left, right);
         buffer
     }
 
-    fn gen_bin_exp(&mut self, tree: &Tree) -> String {
+    fn gen_bin_exp(&mut self, tree: &Tree, lreg: &str) -> String {
         match tree {
             Tree::BinOp(left, op, right) => match op {
-                Token::Plus => self.gen_bin_op(left, right, "add"),
-                Token::Minus => self.gen_bin_op(left, right, "sub"),
-                Token::Multiply => self.gen_bin_op(left, right, "imul"),
-                Token::Divide => self.gen_bin_op(left, right, "div"),
+                Token::Plus => self.gen_bin_op(left, right, "add", lreg),
+                Token::Minus => self.gen_bin_op(left, right, "sub", lreg),
+                Token::Multiply => self.gen_bin_op(left, right, "imul", lreg),
+                Token::Divide => self.gen_bin_op(left, right, "div", lreg),
                 _ => panic!("invalid Token"),
             },
             _ => panic!("Expected BinOp Tree"),

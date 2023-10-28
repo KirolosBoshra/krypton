@@ -1,9 +1,12 @@
-let x = 10
-let y = 0
+let x = 97
+let y = 123
+let new_line = 10
 let i = x
 let inc = (x < y) - (x > y)
-while(i != y) {
-	i = i + inc
+// [NOTE] write syscall (and other syscalls) rsi should be a pointer
+while (i != y) {
+	syscall(1, 1, i, 1)
+	syscall(1, 1, new_line, 1)
+		i = i + inc
 }
-
-exit(i)
+syscall(60, 0)
