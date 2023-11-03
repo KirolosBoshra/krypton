@@ -135,6 +135,7 @@ impl Generator {
 
             // Tree::For { var, expr, body } => {}
             Tree::SysCall(args) => {
+                program += &format!("\t;; Syscall({:?}) ;;\n", args);
                 for i in 1..args.len() {
                     program += &self.gen_expr(&args[i], SYSCALL_REGS[i - 1]);
                 }
@@ -186,17 +187,14 @@ impl Generator {
     }
 
     fn gen_expr(&mut self, tree: &Tree, reg: &str) -> String {
-        let mut mov = "mov";
-        if reg == "rsi" {
-            mov = "lea";
-        }
+        //[TODO] STATIC TYPES & [?]Pointers
         match tree {
             Tree::Number(num) => {
-                format!("\t{mov} {}, {}\n", reg, num)
+                format!("\tmov {}, {}\n", reg, num)
             }
             Tree::Ident(var) => {
                 format!(
-                    "\t{mov} {}, QWORD [rsp + {}]\n",
+                    "\tmov {}, QWORD [rsp + {}]\n",
                     reg,
                     (self.find_var(var).stack_loc * 8)
                 )
@@ -287,6 +285,7 @@ impl Generator {
     }
 
     fn gen_cmp_exp(&mut self, tree: &Tree) -> String {
+        //[TODO] Adding the rest of CmpOp
         match tree {
             Tree::CmpOp(left, op, right) => {
                 let op_str = match op {
