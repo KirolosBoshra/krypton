@@ -1,7 +1,7 @@
 #[derive(Debug, Clone)]
 pub enum Token {
-    Number(i32),
-    Str(String),
+    Number(usize),
+    String(String),
     Plus,
     DPlue,
     Minus,
@@ -101,7 +101,7 @@ impl Tokenizer {
                             }
                         }
                     }
-                    tokens.push(Token::Str(string));
+                    tokens.push(Token::String(string));
                 }
                 '(' => {
                     tokens.push(Token::OpenParen);

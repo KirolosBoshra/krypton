@@ -1,12 +1,9 @@
-let x = 97
-let y = 122
-let new_line = 10
-let i = x
-let inc = (x < y) - (x > y)
-// [NOTE] write syscall (and other syscalls) rsi should be a pointer
-while (i != y+1) {
-	syscall(1, 1, i, 1)
-	syscall(1, 1, new_line, 1)
-		i = i + inc
-}
-syscall(60, 5)
+let x = "Hello World!\n"
+let msg = "Enter Some Unsafe Shit:"
+let buf = "AAAAA" // 5 chars buffer
+syscall(1, 1, x, 14)
+syscall(1, 1, msg, 23)
+syscall(0, 1, buf, 6) // [UNSAFE AF]
+syscall(1, 1, "Your input:", 11)
+syscall(1, 1, buf, 5)
+exit(0)

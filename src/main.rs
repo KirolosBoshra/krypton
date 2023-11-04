@@ -55,13 +55,13 @@ fn main() {
             &format!("{output_name}.o"),
             &format!("{output_name}.s"),
         ])
-        .spawn();
+        .spawn()
+        .expect("Cannot run nasm")
+        .wait();
     if nasm.is_ok() {
         Command::new("ld")
             .args(&["-o", &output_name, &format!("{output_name}.o")])
             .spawn()
             .expect("Cannot run ld");
-    } else {
-        eprintln!("Cannot run nasm")
     }
 }

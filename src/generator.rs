@@ -6,8 +6,52 @@ struct Var {
     stack_loc: usize,
 }
 impl Var {
-    pub fn new(name: String, stack_loc: usize) -> Self {
+    fn new(name: String, stack_loc: usize) -> Self {
         Self { name, stack_loc }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Strs {
+    value: String,
+    loc: usize,
+    // len: usize,
+}
+impl Strs {
+    fn new(value: String, loc: usize) -> Self {
+        // not used yet
+        // let len = value.len();
+        Self {
+            value,
+            loc,
+            //len
+        }
+    }
+
+    fn asciz(&self) -> String {
+        // i know i can do it using .into_bytes() but it's boring
+        let mut str_bytes = String::new();
+        let mut buf = String::new();
+        for (i, c) in self.value.chars().enumerate() {
+            match c {
+                '\n' | '\t' | '\r' => {
+                    if !buf.is_empty() {
+                        str_bytes += &format!("\"{buf}\", ");
+                        buf.clear();
+                    }
+                    str_bytes += &(c as u8).to_string();
+                    str_bytes += ", ";
+                }
+                _ => {
+                    buf += &c.to_string();
+                    if i == self.value.len() - 1 {
+                        str_bytes += &format!("\"{buf}\", ");
+                    }
+                }
+            }
+        }
+        str_bytes += "0";
+        str_bytes
     }
 }
 
@@ -18,7 +62,9 @@ pub struct Generator {
     assembly_out: String,
     start_section: String,
     text_section: String,
+    data_section: String,
     vars: Vec<Var>,
+    strs: Vec<Strs>,
     stack: usize,
     scopes: Vec<usize>,
 }
@@ -28,17 +74,20 @@ impl Generator {
         Self {
             tree: tree.to_vec(),
             vars: vec![],
+            strs: vec![],
             stack: 0,
             scopes: vec![],
             assembly_out: String::new(),
             start_section: String::new(),
             text_section: String::new(),
+            data_section: String::new(),
         }
     }
 
     pub fn generate_linux_64(&mut self) -> &String {
         let tree_clone = self.tree.clone();
         let mut iter = tree_clone.iter().peekable();
+        self.data_section += "section .data\n";
         self.text_section += "section .text\n\tglobal _start\n";
         self.start_section += "_start:\n";
         let mut program = String::new();
@@ -54,6 +103,7 @@ impl Generator {
         println!("stack: {}", self.stack);
         self.assembly_out += &self.text_section;
         self.assembly_out += &self.start_section;
+        self.assembly_out += &self.data_section;
         &self.assembly_out
     }
     fn gen_linux_64_program(&mut self, tree: &Tree) -> String {
@@ -199,10 +249,23 @@ impl Generator {
                     (self.find_var(var).stack_loc * 8)
                 )
             }
+            Tree::String(string) => {
+                if let Some(str) = self.strs.iter().find(|str| str.value == *string) {
+                    format!("\tmov {reg}, str_{}\n", str.loc)
+                } else {
+                    let str = Strs::new(string.to_string(), self.strs.len());
+                    self.strs.push(str.clone());
+                    self.data_section += &format!("str_{}:\n\tdb {}\n", str.loc, str.asciz());
+                    format!("\tmov {reg}, str_{}\n", str.loc)
+                }
+            }
             Tree::BinOp(..) => self.gen_bin_exp(tree, reg),
             Tree::CmpOp(..) => self.gen_cmp_exp(tree),
             Tree::Empty() => String::new(),
-            _ => panic!("Unexpected expr"),
+            _ => {
+                println!("Unexpected expr {:?}", tree);
+                panic!("Unexpected expr")
+            }
         }
     }
 
@@ -313,17 +376,8 @@ impl Generator {
 
     fn handle_vars(&mut self, ident: &String, expr: &Tree) -> String {
         let mut buffer = String::new();
-        match *expr {
-            Tree::Number(num) => {
-                let stack_loc = (self.find_var(ident).stack_loc * 8).to_string();
-                buffer += &format!("\tmov QWORD [rsp + {}], {}\n", stack_loc, num);
-            }
-            _ => {
-                buffer += &self.gen_expr(expr, "rax");
-                let stack_loc = (self.find_var(ident).stack_loc * 8).to_string();
-                buffer.push_str(&format!("\tmov QWORD [rsp + {}], rax\n", stack_loc));
-            }
-        }
+        let stack_loc = (self.find_var(ident).stack_loc * 8).to_string();
+        buffer += &self.gen_expr(expr, &format!("QWORD [rsp + {}]", stack_loc));
         buffer
     }
 

@@ -2,10 +2,10 @@ use crate::tokenize::Token;
 
 #[derive(Debug, Clone)]
 pub enum Tree {
-    Number(i32),
+    Number(usize),
     Ident(String),
     Empty(),
-    Str(String),
+    String(String),
     BinOp(Box<Tree>, Token, Box<Tree>),
     CmpOp(Box<Tree>, Token, Box<Tree>),
     Inc(String),
@@ -225,7 +225,13 @@ impl Parser {
                 }
                 _ => Tree::Ident(string.to_string()),
             },
-            Token::Str(string) => Tree::Str(string.to_string()),
+            Token::String(string) => Tree::String(
+                string
+                    .to_string()
+                    .replace("\\n", "\n")
+                    .replace("\\t", "\t")
+                    .replace("\\r", "\r"),
+            ),
             Token::Plus => self.parse_factor(iter),
             Token::Minus => {
                 let factor = self.parse_factor(iter);
