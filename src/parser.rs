@@ -226,11 +226,13 @@ impl Parser {
                 _ => Tree::Ident(string.to_string()),
             },
             Token::String(string) => Tree::String(
+                // i could use a crate for that  ig if i wanna use unicodes
                 string
                     .to_string()
                     .replace("\\n", "\n")
                     .replace("\\t", "\t")
-                    .replace("\\r", "\r"),
+                    .replace("\\r", "\r")
+                    .replace("\\\"", "\""),
             ),
             Token::Plus => self.parse_factor(iter),
             Token::Minus => {

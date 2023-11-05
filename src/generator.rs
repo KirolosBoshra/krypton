@@ -33,8 +33,8 @@ impl Strs {
         let mut str_bytes = String::new();
         let mut buf = String::new();
         for (i, c) in self.value.chars().enumerate() {
-            match c {
-                '\n' | '\t' | '\r' => {
+            match c.is_alphanumeric() {
+                false => {
                     if !buf.is_empty() {
                         str_bytes += &format!("\"{buf}\", ");
                         buf.clear();

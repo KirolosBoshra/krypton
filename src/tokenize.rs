@@ -95,6 +95,14 @@ impl Tokenizer {
                                 iter.next();
                                 break;
                             }
+                            '\\' => {
+                                string.push(c);
+                                iter.next();
+                                if *iter.peek().unwrap() == '\"' {
+                                    string.push('\"');
+                                    iter.next();
+                                }
+                            }
                             _ => {
                                 string.push(c);
                                 iter.next();
